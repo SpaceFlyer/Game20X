@@ -41,6 +41,8 @@ class SearchNode {
 public:
     SearchNode(const State& state) : gameState(state) {
         totalFreq[0] = totalFreq[1] = totalPositiveRegret[0] = totalPositiveRegret[1] = 0;
+        sampleUtilitySum = 0;
+        sampleUtilityCnt = 0;
     }
 
     vector<Action> sampleRandomActions(Player player, int count = DEFAULT_SAMPLE_PER_NODE_PER_PLAYER) const {
@@ -97,7 +99,13 @@ public:
         }
         Action a0 = sampleAction(Player::P0, regrets[0], totalPositiveRegret[0]);
         Action a1 = sampleAction(Player::P1, regrets[1], totalPositiveRegret[1]);
-        return getChild(gameState.next(a0, a1)).sampleUtility(depthLimit - 1);
+
+        VType result = getChild(gameState.next(a0, a1)).sampleUtility(depthLimit - 1);
+#ifdef DEBUG
+        sampleUtilitySum += result;
+        sampleUtilityCnt++;
+#endif
+        return result;
     }
 
     VType visit(int depthLimit) {
@@ -123,6 +131,10 @@ public:
             addActionRegret(Player::P1, aa1,
                     -(getChild(gameState.next(a0, aa1)).sampleUtility(depthLimit) - utility));
         }
+#ifdef DEBUG
+        sampleUtilitySum += utility;
+        sampleUtilityCnt++;
+#endif
         return utility;
     }
 
@@ -130,6 +142,11 @@ public:
         string indent(depth * 2, ' ');
         os << indent << "SearchNode:" << endl;
         os << indent << "  gameState: " << gameState.dumps() << endl;
+#ifdef DEBUG
+        os << indent << "  sampled utility: " << sampleUtilitySum << '/' <<
+                sampleUtilityCnt << " = " << (double)sampleUtilitySum / sampleUtilityCnt << endl;
+        os << indent << "  estimate utility: " << gameState.estimateU() << endl;
+#endif
         for(int player = 0; player < 2; ++player) {
             os << indent << "  actionFreq of player " << player << ":" << endl;
             for(auto it : actionFreq[player]) {
@@ -158,6 +175,10 @@ protected:
     State gameState;
 
     HashMap<State, SearchNode> children;
+#ifdef DEBUG
+    VType sampleUtilitySum;
+    int sampleUtilityCnt;
+#endif
 };
 
 }
