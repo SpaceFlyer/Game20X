@@ -40,13 +40,25 @@ struct Hasher {
 template<typename K, typename T>
 using HashMap = Map<K, T, Hasher<K>>;
 
+template<class T>
+struct PairHasher {
+    int operator()(const pair<T, T>& pair) const {
+        return pair.first.hash() * pair.second.MAX_HASH + pair.second.hash();
+    }
+};
+
+template<typename K, typename T>
+using PairHashMap = Map<pair<K, K>, T, PairHasher<K>>;
+
 template<class Action, class State>
 class SearchNode {
 public:
     SearchNode(const State& state) : gameState(state) {
         totalFreq[0] = totalFreq[1] = totalPositiveRegret[0] = totalPositiveRegret[1] = 0;
+#ifdef DEBUG
         sampleUtilitySum = 0;
         sampleUtilityCnt = 0;
+#endif
     }
 
     vector<Action> sampleRandomActions(Player player, int count = DEFAULT_SAMPLE_PER_NODE_PER_PLAYER) const {
@@ -77,12 +89,16 @@ public:
         return Action();
     }
 
-    void addActionFreq(Player player, const Action& action) {
+    inline Action sampleFinalAction(Player player) const {
+        return sampleAction(player, actionFreq[(int)player], totalFreq[(int)player]);
+    }
+
+    inline void addActionFreq(Player player, const Action& action) {
         totalFreq[(int)player]++;
         actionFreq[(int)player][action]++;
     }
 
-    void addActionRegret(Player player, const Action& action, VType delta) {
+    inline void addActionRegret(Player player, const Action& action, VType delta) {
         VType& regret = regrets[(int)player][action];
         VType newRegret = regret + delta;
         totalPositiveRegret[(int)player] -= max<VType>(0, regret);
@@ -90,11 +106,12 @@ public:
         regret = newRegret;
     }
 
-    SearchNode& getChild(const State& state) {
-        if (children.find(state) == children.end()) {
-            children.emplace(state, SearchNode(state));
+    inline SearchNode& getChild(const Action& a0, const Action& a1) {
+        pair<Action, Action> actionPair(a0, a1);
+        if (children.find(actionPair) == children.end()) {
+            children.emplace(actionPair, SearchNode(gameState.next(a0, a1)));
         }
-        return children.find(state)->second;
+        return children.find(actionPair)->second;
     }
 
     VType sampleUtility(int depthLimit) {
@@ -104,7 +121,7 @@ public:
         Action a0 = sampleAction(Player::P0, regrets[0], totalPositiveRegret[0]);
         Action a1 = sampleAction(Player::P1, regrets[1], totalPositiveRegret[1]);
 
-        VType result = getChild(gameState.next(a0, a1)).sampleUtility(depthLimit - 1);
+        VType result = getChild(a0, a1).sampleUtility(depthLimit - 1);
 #ifdef DEBUG
         sampleUtilitySum += result;
         sampleUtilityCnt++;
@@ -121,19 +138,19 @@ public:
         addActionFreq(Player::P0, a0);
         addActionFreq(Player::P1, a1);
         State nextState = gameState.next(a0, a1);
-        VType utility = getChild(nextState).visit(depthLimit - 1);
+        VType utility = getChild(a0, a1).visit(depthLimit - 1);
 
         vector<Action> samples0 = sampleRandomActions(Player::P0);
         vector<Action> samples1 = sampleRandomActions(Player::P1);
 
         for(auto aa0 : samples0) {
             addActionRegret(Player::P0, aa0,
-                    getChild(gameState.next(aa0, a1)).sampleUtility(depthLimit) - utility);
+                    getChild(aa0, a1).sampleUtility(depthLimit) - utility);
         }
         for(auto aa1 : samples1) {
             // player 1's utility is negated
             addActionRegret(Player::P1, aa1,
-                    -(getChild(gameState.next(a0, aa1)).sampleUtility(depthLimit) - utility));
+                    -(getChild(a0, aa1).sampleUtility(depthLimit) - utility));
         }
 #ifdef DEBUG
         sampleUtilitySum += utility;
@@ -180,7 +197,7 @@ protected:
 
     State gameState;
 
-    HashMap<State, SearchNode> children;
+    PairHashMap<Action, SearchNode> children;
 
     // P0 for lowerV (P0 first)
     // P1 for upperV (P1 first)
@@ -207,7 +224,7 @@ protected:
             for(auto otherAction : otherActions) {
                 auto a0 = player == Player::P0 ? thisAction : otherAction;
                 auto a1 = player == Player::P0 ? otherAction : thisAction;
-                vMap[otherAction] += p * getChild(gameState.next(a0, a1)).v(player);
+                vMap[otherAction] += p * getChild(a0, a1).v(player);
             }
         }
 

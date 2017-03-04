@@ -11,6 +11,8 @@ VType data[DATA_LEN]; // 4 2x2 games
 
 template<int N>
 struct XNAction {
+    static constexpr int MAX_HASH = N;
+
     int a;
     int hash() const { return a; }
     string dumps() const { return to_string(a); }
@@ -26,17 +28,6 @@ struct XNDState {
 
     int d;
     int a0[D], a1[D];
-
-    int hash() const {
-        int result = 0;
-        for(int i = 0; i < d; ++i) {
-            result *= N * N;
-            result += a0[i] * N + a1[i];
-        }
-        return d + result * (D + 1);
-    }
-
-    bool operator== (const XNDState& other) const { return hash() == other.hash(); }
 
     bool isTerminal() const { return d == D; }
     VType estimateU() const {
