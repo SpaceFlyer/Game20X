@@ -11,8 +11,9 @@ using uint16 = unsigned short;
 
 constexpr int MAX_LINK = 105;
 constexpr int MOVE_BIT = 3;
-constexpr int DEPTH = 10;
-constexpr int SAMPLE_COUNT = 64;
+constexpr int DEPTH = 3; // 10;
+constexpr int SAMPLE_COUNT = 5; // 64;
+constexpr int MAX_T = 1; // 10000;
 
 int factoryCount;
 int linkCount;
@@ -100,8 +101,9 @@ struct SingleMoveAction {
         int moveBorgs = MoveBorgs(move, f1borgs, f2borgs);
         if (move < 0) {
             swap(f1, f2);
-            moveBorgs = -moveBorgs;
         }
+        if (moveBorgs == 0)
+            return "WAIT";
         return "MOVE " + to_string(f1) + " " + to_string(f2) + " " + to_string(moveBorgs);
     }
 };
@@ -153,7 +155,7 @@ struct GhostState {
         auto to = decltype(Troop::to)(links[a.linkId].f1 + links[a.linkId].f2 - from);
         auto eta = decltype(Troop::eta)(links[a.linkId].dist);
         ff.borgs -= num;
-        assert(ff.borgs >= 0);
+        ASSERT(ff.borgs >= 0);
         return {decltype(Troop::side)(playerSign), from, to, eta, num};
     }
 
@@ -260,6 +262,9 @@ string SingleMoveAction::dumps(const GhostState& state) const {
         return dumps();
     const Factory& f1 = state.factories[links[linkId].f1];
     const Factory& f2 = state.factories[links[linkId].f2];
+    const Factory& ff = move > 0 ? f1 : f2;
+    if (ff.side != 1)
+        return "WAIT";
     return dumps(f1.borgs, f2.borgs);
 }
 
@@ -279,6 +284,10 @@ int main()
 
     // game loop
     while (1) {
+        auto start = clock();
+        int clockLimit = CLOCKS_PER_SEC / 1000;
+        clockLimit *= turn == 0 ? 20 : 20;
+
         turn++;
 
         int entityCount; // the number of entities (e.g. factories and troops)
@@ -291,7 +300,6 @@ int main()
         GhostState initialState;
         initialState.turn = turn;
 
-        int fCnt = 0;
         for (int i = 0; i < entityCount; i++) {
             int id;
             string type;
@@ -299,14 +307,14 @@ int main()
             for(int j = 0; j < 5; ++j)
                 cin >> args[j];
             if (type == FACTORY) {
-                assert(id == fCnt);
+                ASSERT(id < factoryCount);
                 initialState.factories.push_back({
                     (decltype(Factory::side))args[0],
                     (decltype(Factory::prod))args[2],
                     (decltype(Factory::borgs))args[1]
                 });
             } else {
-                assert(type == TROOP);
+                ASSERT(type == TROOP);
                 initialState.troops.push_back({
                     (decltype(Troop::side))args[0],
                     (decltype(Troop::from))args[1],
@@ -322,12 +330,20 @@ int main()
         // To debug: cerr << "Debug messages..." << endl;
 
         GhostSearchNode root(initialState);
-        for(int t = 0; t < 10000; ++t) // TODO timer
+        int t = 0;
+        while (true) {
+            auto now = clock();
+            if (now - start >= clockLimit)
+                break;
+            t++;
             root.visit(DEPTH);
+        }
 
         SingleMoveAction action = root.sampleFinalAction(Player::P0);
 
         // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
         cout << action.dumps(initialState) << endl;
+
+        cerr << "t: " << t << endl;
     }
 }

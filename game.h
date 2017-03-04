@@ -7,6 +7,12 @@
 #include <unordered_map>
 using namespace std;
 
+#ifdef DEBUG
+#define ASSERT(a) assert(a)
+#else
+#define ASSERT(a)
+#endif
+
 namespace game20x {
 
 constexpr int DEFAULT_SAMPLE_PER_NODE_PER_PLAYER = 8;
@@ -61,6 +67,11 @@ public:
 #endif
     }
 
+    ~SearchNode() {
+        for(auto& it : children)
+            delete it.second;
+    }
+
     vector<Action> sampleRandomActions(Player player, int count = SAMPLE_COUNT) const {
         if (count >= gameState.getAllActionCount(player)) {
             return gameState.getAllActions(player);
@@ -85,7 +96,7 @@ public:
                 return it->first;
             }
         }
-        assert(false); // we shouldn't reach here
+        ASSERT(false); // we shouldn't reach here
         return Action();
     }
 
@@ -109,9 +120,9 @@ public:
     inline SearchNode& getChild(const Action& a0, const Action& a1) {
         pair<Action, Action> actionPair(a0, a1);
         if (children.find(actionPair) == children.end()) {
-            children.emplace(actionPair, SearchNode(gameState.next(a0, a1)));
+            children.emplace(actionPair, new SearchNode(gameState.next(a0, a1)));
         }
-        return children.find(actionPair)->second;
+        return *children.find(actionPair)->second;
     }
 
     VType sampleUtility(int depthLimit) {
@@ -182,7 +193,7 @@ public:
         }
         os << indent << "  children:" << endl;
         for(auto& it : children) {
-            it.second.dump(os, depth + 1);
+            it.second->dump(os, depth + 1);
         }
         os << indent << "SearchNode ends" << endl;
     }
@@ -197,7 +208,7 @@ protected:
 
     State gameState;
 
-    PairHashMap<Action, SearchNode> children;
+    PairHashMap<Action, SearchNode*> children;
 
     // P0 for lowerV (P0 first)
     // P1 for upperV (P1 first)
