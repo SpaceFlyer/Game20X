@@ -12,7 +12,11 @@ namespace game20x {
 constexpr int DEFAULT_SAMPLE_PER_NODE_PER_PLAYER = 8;
 
 using VType = int;
+using Float = double;
 using Byte = unsigned char;
+
+constexpr VType MAX_V = 1e8;
+constexpr VType MIN_V = -1e8;
 
 enum class Player {
     P0 = 0,
@@ -138,7 +142,7 @@ public:
         return utility;
     }
 
-    void dump(ostream& os, int depth) const {
+    void dump(ostream& os, int depth) {
         string indent(depth * 2, ' ');
         os << indent << "SearchNode:" << endl;
         os << indent << "  gameState: " << gameState.dumps() << endl;
@@ -146,11 +150,13 @@ public:
         os << indent << "  sampled utility: " << sampleUtilitySum << '/' <<
                 sampleUtilityCnt << " = " << (double)sampleUtilitySum / sampleUtilityCnt << endl;
         os << indent << "  estimate utility: " << gameState.estimateU() << endl;
+        os << indent << "  lowerV <= upperV : " << lowerV() << " <= " << upperV() << endl;
 #endif
         for(int player = 0; player < 2; ++player) {
             os << indent << "  actionFreq of player " << player << ":" << endl;
             for(auto it : actionFreq[player]) {
-                os << indent << "    " << it.second << ": " << it.first.dumps() << endl;
+                os << indent << "    " << it.second << "(" << (Float)it.second / totalFreq[player]
+                        << "): " << it.first.dumps() << endl;
             }
             os << indent << "  regrets of player " << player << ":" << endl;
             for(auto it : regrets[player]) {
@@ -175,6 +181,46 @@ protected:
     State gameState;
 
     HashMap<State, SearchNode> children;
+
+    // P0 for lowerV (P0 first)
+    // P1 for upperV (P1 first)
+    Float v(Player player) {
+        if (gameState.isTerminal()) {
+            return gameState.estimateU();
+        }
+
+        int sign = player == Player::P0 ? 1 : -1;
+        Player otherPlayer = (Player)(1 - (int)player);
+
+        if (actionFreq[(int)player].empty()) {
+            for(auto action : sampleRandomActions(player))
+                addActionFreq(player, action);
+        }
+
+        vector<Action> otherActions = sampleRandomActions(otherPlayer);
+        HashMap<Action, Float> vMap;
+        for(auto otherAction : otherActions)
+            vMap[otherAction] = 0;
+        for(auto it : actionFreq[(int)player]) {
+            auto thisAction = it.first;
+            Float p = (Float)it.second / totalFreq[(int)player];
+            for(auto otherAction : otherActions) {
+                auto a0 = player == Player::P0 ? thisAction : otherAction;
+                auto a1 = player == Player::P0 ? otherAction : thisAction;
+                vMap[otherAction] += p * getChild(gameState.next(a0, a1)).v(player);
+            }
+        }
+
+        Float result = MAX_V;
+        for(auto otherAction : otherActions)
+            result = min(result, vMap[otherAction] * sign);
+
+        return result * sign;
+    }
+
+    Float lowerV() { return v(Player::P0); }
+    Float upperV() { return v(Player::P1); }
+
 #ifdef DEBUG
     VType sampleUtilitySum;
     int sampleUtilityCnt;

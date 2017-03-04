@@ -71,9 +71,12 @@ struct XNDState {
 
 
     string dumps() const {
-        sprintf(gCharBuffer, "d = %d, a0 = %d, %d, a1 = %d, %d",
-                d, a0[0], a0[1], a1[0], a1[1]);
-        return gCharBuffer;
+        string result = to_string(d);
+        for(int i = 0; i < d; ++i) {
+            result += " a0[" + to_string(i) + "] = " + to_string(a0[d]);
+            result += " a1[" + to_string(i) + "] = " + to_string(a1[d]);
+        }
+        return result;
     }
 
     static void DumpFormattedData() {
@@ -90,18 +93,22 @@ struct XNDState {
     }
 };
 
-using X2Action = XNAction<2>;
-using X2State = XNDState<2, 2>;
-using X2SearchNode = SearchNode<X2Action, X2State>;
+// using X2Action = XNAction<2>;
+// using X2State = XNDState<2, 2>;
+// using X2SearchNode = SearchNode<X2Action, X2State>;
+// using XState = X2State;
+// using XSearchNode = X2SearchNode;
 
 using X3Action = XNAction<3>;
 using X32State = XNDState<3, 2>;
 using X3SearchNode = SearchNode<X3Action, X32State>;
-
-// using XState = X2State;
-// using XSearchNode = X2SearchNode;
 using XState = X32State;
 using XSearchNode = X3SearchNode;
+
+// using X10Action = XNAction<10>;
+// using X10State = XNDState<10, 1>;
+// using XState = X10State;
+// using XSearchNode = SearchNode<X10Action, X10State>;
 
 int main() {
     srand(0);
