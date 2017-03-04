@@ -12,11 +12,12 @@ constexpr int MOVE_BIT = 2;
 constexpr int DEPTH = 5; // 10;
 constexpr int SAMPLE_COUNT = 1; // 64;
 constexpr int MAX_T = 100000000;
-constexpr int TLE0 = 20; // ms
-constexpr int TLE1 = 20; // ms
+constexpr int TLE0 = 900; // ms
+constexpr int TLE1 = 40; // ms
 
 constexpr int PROD_MULTIPLIER = 4;
 
+auto start = clock();
 
 int factoryCount;
 int linkCount;
@@ -278,6 +279,14 @@ string SingleMoveAction::dumps(const GhostState& state) const {
 
 using GhostSearchNode = SearchNode<SingleMoveAction, GhostState, SAMPLE_COUNT>;
 
+template <>
+int GhostSearchNode::MemoryIndex = 0;
+
+GhostSearchNode gMemory[MAX_NODE_COUNT];
+
+template <>
+GhostSearchNode* GhostSearchNode::Memory = gMemory;
+
 /**
  * Auto-generated code below aims at helping you parse
  * the standard input according to the problem statement.
@@ -292,9 +301,9 @@ int main()
 
     // game loop
     while (1) {
-        auto start = clock();
         int clockLimit = CLOCKS_PER_SEC / 1000;
         clockLimit *= turn == 0 ? TLE0 : TLE1;
+        cerr << "clockLimit: " << clockLimit << endl; // TODO TEST
 
         turn++;
 
@@ -337,7 +346,8 @@ int main()
         // Write an action using cout. DON'T FORGET THE "<< endl"
         // To debug: cerr << "Debug messages..." << endl;
 
-        GhostSearchNode root(initialState);
+        GhostSearchNode::ClearMemory();
+        GhostSearchNode& root = *GhostSearchNode::Make(initialState);
         int t = 0;
         while (true && t < MAX_T) {
             auto now = clock();
@@ -349,10 +359,12 @@ int main()
 
         SingleMoveAction action = root.sampleFinalAction(Player::P0);
 
-        cerr << "t: " << t << endl;
+        cerr << "t: " << t << " time: " << (double)(clock() - start) / CLOCKS_PER_SEC << endl;
         // root.dump(cerr, 0, 0);
 
         // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
         cout << action.dumps(initialState) << endl;
+
+        start = clock();
     }
 }

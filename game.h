@@ -16,6 +16,7 @@ using namespace std;
 namespace game20x {
 
 constexpr int DEFAULT_SAMPLE_PER_NODE_PER_PLAYER = 8;
+constexpr int MAX_NODE_COUNT = 256 * (1 << 10);
 
 using VType = int;
 using Float = double;
@@ -59,17 +60,28 @@ using PairHashMap = Map<pair<K, K>, T, PairHasher<K>>;
 template<class Action, class State, int SAMPLE_COUNT = DEFAULT_SAMPLE_PER_NODE_PER_PLAYER>
 class SearchNode {
 public:
-    SearchNode(const State& state) : gameState(state) {
+    void init(const State& state) {
+        gameState = state;
         totalFreq[0] = totalFreq[1] = totalPositiveRegret[0] = totalPositiveRegret[1] = 0;
+        regrets[0].clear();
+        regrets[1].clear();
+        actionFreq[0].clear();
+        actionFreq[1].clear();
 #ifdef DEBUG
         sampleUtilitySum = 0;
         sampleUtilityCnt = 0;
 #endif
     }
 
-    ~SearchNode() {
-        for(auto& it : children)
-            delete it.second;
+    static int MemoryIndex;
+    static SearchNode* Memory;
+    static SearchNode* Make(const State& state) {
+        SearchNode* result = Memory + (MemoryIndex++);
+        result->init(state);
+        return result;
+    }
+    static void ClearMemory() {
+        MemoryIndex = 0;
     }
 
     vector<Action> sampleRandomActions(Player player, int count = SAMPLE_COUNT) {
@@ -120,7 +132,7 @@ public:
     inline SearchNode& getChild(const Action& a0, const Action& a1) {
         pair<Action, Action> actionPair(a0, a1);
         if (children.find(actionPair) == children.end()) {
-            children.emplace(actionPair, new SearchNode(gameState.next(a0, a1)));
+            children.emplace(actionPair, SearchNode::Make(gameState.next(a0, a1)));
         }
         return *children.find(actionPair)->second;
     }

@@ -101,6 +101,14 @@ using XSearchNode = X3SearchNode;
 // using XState = X10State;
 // using XSearchNode = SearchNode<X10Action, X10State>;
 
+template <>
+int XSearchNode::MemoryIndex = 0;
+
+XSearchNode gMemory[MAX_NODE_COUNT];
+
+template <>
+XSearchNode* XSearchNode::Memory = gMemory;
+
 int main() {
     srand(0);
     // for(int i = 0; i < 16; ++i) {
@@ -124,7 +132,8 @@ int main() {
 
     XState initialState;
     initialState.d = 0;
-    XSearchNode root(initialState);
+    XSearchNode::ClearMemory();
+    XSearchNode& root = *XSearchNode::Make(initialState);
 
     for(int t = 0; t < 10000; ++t) {
         root.visit(4); // depth limit is higher than terminal state depth
