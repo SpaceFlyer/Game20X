@@ -50,7 +50,7 @@ struct PairHasher {
 template<typename K, typename T>
 using PairHashMap = Map<pair<K, K>, T, PairHasher<K>>;
 
-template<class Action, class State>
+template<class Action, class State, int SAMPLE_COUNT = DEFAULT_SAMPLE_PER_NODE_PER_PLAYER>
 class SearchNode {
 public:
     SearchNode(const State& state) : gameState(state) {
@@ -61,7 +61,7 @@ public:
 #endif
     }
 
-    vector<Action> sampleRandomActions(Player player, int count = DEFAULT_SAMPLE_PER_NODE_PER_PLAYER) const {
+    vector<Action> sampleRandomActions(Player player, int count = SAMPLE_COUNT) const {
         if (count >= gameState.getAllActionCount(player)) {
             return gameState.getAllActions(player);
         } else {
@@ -143,11 +143,11 @@ public:
         vector<Action> samples0 = sampleRandomActions(Player::P0);
         vector<Action> samples1 = sampleRandomActions(Player::P1);
 
-        for(auto aa0 : samples0) {
+        for(const auto& aa0 : samples0) {
             addActionRegret(Player::P0, aa0,
                     getChild(aa0, a1).sampleUtility(depthLimit) - utility);
         }
-        for(auto aa1 : samples1) {
+        for(const auto& aa1 : samples1) {
             // player 1's utility is negated
             addActionRegret(Player::P1, aa1,
                     -(getChild(a0, aa1).sampleUtility(depthLimit) - utility));
@@ -171,17 +171,17 @@ public:
 #endif
         for(int player = 0; player < 2; ++player) {
             os << indent << "  actionFreq of player " << player << ":" << endl;
-            for(auto it : actionFreq[player]) {
+            for(const auto& it : actionFreq[player]) {
                 os << indent << "    " << it.second << "(" << (Float)it.second / totalFreq[player]
                         << "): " << it.first.dumps() << endl;
             }
             os << indent << "  regrets of player " << player << ":" << endl;
-            for(auto it : regrets[player]) {
+            for(const auto& it : regrets[player]) {
                 os << indent << "    " << it.second << ": " << it.first.dumps() << endl;
             }
         }
         os << indent << "  children:" << endl;
-        for(auto it : children) {
+        for(auto& it : children) {
             it.second.dump(os, depth + 1);
         }
         os << indent << "SearchNode ends" << endl;
@@ -210,26 +210,26 @@ protected:
         Player otherPlayer = (Player)(1 - (int)player);
 
         if (actionFreq[(int)player].empty()) {
-            for(auto action : sampleRandomActions(player))
+            for(const auto& action : sampleRandomActions(player))
                 addActionFreq(player, action);
         }
 
         vector<Action> otherActions = sampleRandomActions(otherPlayer);
         HashMap<Action, Float> vMap;
-        for(auto otherAction : otherActions)
+        for(const auto& otherAction : otherActions)
             vMap[otherAction] = 0;
-        for(auto it : actionFreq[(int)player]) {
-            auto thisAction = it.first;
+        for(const auto& it : actionFreq[(int)player]) {
+            const auto& thisAction = it.first;
             Float p = (Float)it.second / totalFreq[(int)player];
-            for(auto otherAction : otherActions) {
-                auto a0 = player == Player::P0 ? thisAction : otherAction;
-                auto a1 = player == Player::P0 ? otherAction : thisAction;
+            for(const auto& otherAction : otherActions) {
+                const auto& a0 = player == Player::P0 ? thisAction : otherAction;
+                const auto& a1 = player == Player::P0 ? otherAction : thisAction;
                 vMap[otherAction] += p * getChild(a0, a1).v(player);
             }
         }
 
         Float result = MAX_V;
-        for(auto otherAction : otherActions)
+        for(const auto& otherAction : otherActions)
             result = min(result, vMap[otherAction] * sign);
 
         return result * sign;
