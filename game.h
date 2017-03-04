@@ -72,7 +72,7 @@ public:
             delete it.second;
     }
 
-    vector<Action> sampleRandomActions(Player player, int count = SAMPLE_COUNT) const {
+    vector<Action> sampleRandomActions(Player player, int count = SAMPLE_COUNT) {
         if (count >= gameState.getAllActionCount(player)) {
             return gameState.getAllActions(player);
         } else {
@@ -85,7 +85,7 @@ public:
 
     template<typename FType>
     Action sampleAction(Player player, const HashMap<Action, FType>& sampleFreq,
-            const FType totalFreq) const {
+            const FType totalFreq) {
         if (totalFreq == 0)
             return gameState.sampleRandomAction(player);
         int rn = rand() % totalFreq;
@@ -100,7 +100,7 @@ public:
         return Action();
     }
 
-    inline Action sampleFinalAction(Player player) const {
+    inline Action sampleFinalAction(Player player) {
         return sampleAction(player, actionFreq[(int)player], totalFreq[(int)player]);
     }
 
@@ -170,7 +170,9 @@ public:
         return utility;
     }
 
-    void dump(ostream& os, int depth) {
+    void dump(ostream& os, int depth, int maxDepth = -1) {
+        if (maxDepth > -1 && depth > maxDepth)
+            return;
         string indent(depth * 2, ' ');
         os << indent << "SearchNode:" << endl;
         os << indent << "  gameState: " << gameState.dumps() << endl;

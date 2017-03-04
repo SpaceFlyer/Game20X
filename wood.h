@@ -7,13 +7,16 @@ using namespace game20x;
 
 using namespace std;
 
-using uint16 = unsigned short;
-
 constexpr int MAX_LINK = 105;
-constexpr int MOVE_BIT = 3;
-constexpr int DEPTH = 3; // 10;
-constexpr int SAMPLE_COUNT = 5; // 64;
-constexpr int MAX_T = 1; // 10000;
+constexpr int MOVE_BIT = 2;
+constexpr int DEPTH = 5; // 10;
+constexpr int SAMPLE_COUNT = 1; // 64;
+constexpr int MAX_T = 100000000;
+constexpr int TLE0 = 20; // ms
+constexpr int TLE1 = 20; // ms
+
+constexpr int PROD_MULTIPLIER = 4;
+
 
 int factoryCount;
 int linkCount;
@@ -29,7 +32,7 @@ const char* TROOP = "TROOP";
 struct Factory {
     char side;
     Byte prod;
-    uint16 borgs;
+    short borgs;
 
     string dumps() const {
         sprintf(gCharBuffer, "[side=%d, prod=%d, borgs=%d]", side, prod, borgs);
@@ -59,7 +62,7 @@ class GhostState;
 
 struct SingleMoveAction {
     static constexpr int BIT = MOVE_BIT;
-    static constexpr int MAX_MOVE = 1 << BIT;
+    static constexpr int MAX_MOVE = 1 << BIT;;
     static constexpr int MOVE_CNT = (1 << (BIT + 1)) + 1;
     static constexpr int LINK_MULT = 1 << (BIT + 2);
     static constexpr int MAX_HASH = MAX_LINK * LINK_MULT + MOVE_CNT;
@@ -108,15 +111,15 @@ struct SingleMoveAction {
     }
 };
 
-struct GhostState {
-    static constexpr int PROD_MULTIPLIER = 4;
+constexpr int SingleMoveAction::MAX_MOVE;
 
+struct GhostState {
     int turn;
     vector<Factory> factories;
     vector<Troop> troops;
 
     GhostState() {
-        fEstimateU = -1;
+        fEstimateU = MIN_V;
     }
 
     bool isTerminal() const {
@@ -124,16 +127,19 @@ struct GhostState {
     }
 
     VType estimateU() {
-        if (fEstimateU == -1) {
+        if (fEstimateU == MIN_V) {
             int multiplier = isTerminal() ? 1 : PROD_MULTIPLIER;
             fEstimateU = 0;
             for(const auto& f : factories) {
                 fEstimateU += f.side * (f.borgs + f.prod * multiplier);
+                // cerr << "EstimateU: " << fEstimateU << " f" << f.dumps() << endl;
             }
             for(const auto& t : troops) {
                 fEstimateU += t.num * t.side;
+                // cerr << "EstimateU: " << fEstimateU << " t" << t.dumps() << endl;
             }
         }
+        // cerr << endl << endl;
         return fEstimateU;
     }
 
@@ -178,7 +184,8 @@ struct GhostState {
 
         // Produce new borgs
         for(auto& f : nextState.factories)
-            f.borgs += f.prod;
+            if (f.side)
+                f.borgs += f.prod;
 
         // Solve battles
         using VI = vector<int>;
@@ -212,34 +219,34 @@ struct GhostState {
         return nextState;
     }
 
-    int getAllActionCount(Player player) const {
-        return linkCount * SingleMoveAction::MOVE_CNT + 1;
-    }
-    vector<SingleMoveAction> getAllActions(Player player) const {
-        vector<SingleMoveAction> result;
-        int playerSign = player == Player::P0 ? 1 : -1;
-        for(int i = 0; i < linkCount; ++i) {
-            const Factory& f1 = factories[links[i].f1];
-            const Factory& f2 = factories[links[i].f2];
-            if (f1.side * playerSign > 0) {
-                for(int m = 1; m <= SingleMoveAction::MAX_MOVE; ++m)
-                    result.push_back({i, m});
+    const vector<SingleMoveAction>& getAllActions(Player player) {
+        auto& result = fActions[(int)player];
+        if (result.empty()) {
+            int playerSign = player == Player::P0 ? 1 : -1;
+            for(int i = 0; i < linkCount; ++i) {
+                const Factory& f1 = factories[links[i].f1];
+                const Factory& f2 = factories[links[i].f2];
+                if (f1.side * playerSign > 0) {
+                    for(int m = 1; m <= min<int>(f1.borgs, SingleMoveAction::MAX_MOVE); ++m)
+                        result.push_back({i, m});
+                }
+                if (f2.side * playerSign > 0) {
+                    for(int m = 1; m <= min<int>(f2.borgs, SingleMoveAction::MAX_MOVE); ++m)
+                        result.push_back({i, -m});
+                }
             }
-            if (f2.side * playerSign > 0) {
-                for(int m = 1; m <= SingleMoveAction::MAX_MOVE; ++m)
-                    result.push_back({i, -m});
-            }
+            result.push_back({-1, 0}); // WAIT
         }
-        result.push_back({-1, 0}); // WAIT
         return result;
     }
 
-    SingleMoveAction sampleRandomAction(Player player) const {
-        if (rand() % (SingleMoveAction::MOVE_CNT * linkCount) == 0)
-            return {-1, 0}; // WAIT with low probability
-        int m = (rand() % SingleMoveAction::MAX_MOVE + 1) * (2 * (rand() % 2) - 1);
-        int linkId = rand() % linkCount;
-        return {linkId, m};
+    int getAllActionCount(Player player) {
+        return getAllActions(player).size();
+    }
+
+    SingleMoveAction sampleRandomAction(Player player) {
+        const auto& actions = getAllActions(player);
+        return actions[rand() % actions.size()];
     }
 
     string dumps() const {
@@ -255,6 +262,7 @@ struct GhostState {
 
 private:
     int fEstimateU;
+    vector<SingleMoveAction> fActions[N_PLAYER];
 };
 
 string SingleMoveAction::dumps(const GhostState& state) const {
@@ -286,7 +294,7 @@ int main()
     while (1) {
         auto start = clock();
         int clockLimit = CLOCKS_PER_SEC / 1000;
-        clockLimit *= turn == 0 ? 20 : 20;
+        clockLimit *= turn == 0 ? TLE0 : TLE1;
 
         turn++;
 
@@ -331,7 +339,7 @@ int main()
 
         GhostSearchNode root(initialState);
         int t = 0;
-        while (true) {
+        while (true && t < MAX_T) {
             auto now = clock();
             if (now - start >= clockLimit)
                 break;
@@ -341,9 +349,10 @@ int main()
 
         SingleMoveAction action = root.sampleFinalAction(Player::P0);
 
+        cerr << "t: " << t << endl;
+        // root.dump(cerr, 0, 0);
+
         // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
         cout << action.dumps(initialState) << endl;
-
-        cerr << "t: " << t << endl;
     }
 }
