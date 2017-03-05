@@ -145,7 +145,7 @@ struct GhostState {
             fEstimateU = 0;
             int fid = 0;
             for(const auto& f : factories) {
-                fEstimateU += f.side * (f.borgs + f.prod * multiplier);
+                fEstimateU += f.side * (f.borgs + f.prod * multiplier + 1);
                 if (needsDump)
                     cerr << "EstimateU: " << fEstimateU << " f" << fid << f.dumps() << endl;
                 fid++;
