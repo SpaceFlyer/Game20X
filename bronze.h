@@ -12,8 +12,8 @@ using namespace std;
 constexpr int MAX_PROD = 3;
 constexpr int MAX_FACTORY = 15;
 constexpr int MAX_LINK = 105;
-constexpr int MOVE_BIT = 2;
-constexpr int DEPTH = 5; // 10;
+constexpr int MOVE_BIT = 1;
+constexpr int DEPTH = 3; // 10;
 constexpr int SAMPLE_COUNT = 1; // 64;
 constexpr int MAX_T = 100000000;
 constexpr int TLE0 = 900; // ms
@@ -21,7 +21,7 @@ constexpr int TLE1 = 40; // ms
 constexpr int PROD_THRESHOLD = 10;
 constexpr int PROD_COST = 10;
 
-constexpr int PROD_MULTIPLIER = 4;
+constexpr int PROD_MULTIPLIER = 16;
 
 auto start = clock();
 
@@ -168,20 +168,28 @@ struct GhostState {
         return turn > 200;
     }
 
-    VType estimateU() {
+    VType estimateU(bool needsDump = false) {
+        if (needsDump) {
+            fEstimateU = MIN_V; // reset to dump
+        }
         if (fEstimateU == MIN_V) {
             int multiplier = isTerminal() ? 1 : PROD_MULTIPLIER;
             fEstimateU = 0;
+            int fid = 0;
             for(const auto& f : factories) {
                 fEstimateU += f.side * (f.borgs + f.prod * multiplier);
-                // cerr << "EstimateU: " << fEstimateU << " f" << f.dumps() << endl;
+                if (needsDump)
+                    cerr << "EstimateU: " << fEstimateU << " f" << fid << f.dumps() << endl;
+                fid++;
             }
             for(const auto& t : troops) {
                 fEstimateU += t.num * t.side;
-                // cerr << "EstimateU: " << fEstimateU << " t" << t.dumps() << endl;
+                if (needsDump)
+                    cerr << "EstimateU: " << fEstimateU << " t" << t.dumps() << endl;
             }
         }
-        // cerr << endl << endl;
+        if (needsDump)
+            cerr << endl << endl;
         return fEstimateU;
     }
 
@@ -488,7 +496,10 @@ int main()
 
         cerr << "t: " << t << " time: " << (double)(clock() - start) / CLOCKS_PER_SEC << endl;
         cerr << action.dumps() << endl;
-        root.dump(cerr, 0, 0); // TODO TEST
+        // root.dump(cerr, 0, 0); // TODO TEST
+
+        // TODO TEST
+        root.dumpRegrets0(cerr, DEPTH);
 
         // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
         cout << action.dumps(initialState) << endl;

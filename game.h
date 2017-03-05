@@ -137,14 +137,14 @@ public:
         return *children.find(actionPair)->second;
     }
 
-    VType sampleUtility(int depthLimit) {
+    VType sampleUtility(int depthLimit, bool needsDump = false) {
         if (depthLimit == 0 || gameState.isTerminal()) {
-            return gameState.estimateU();
+            return gameState.estimateU(needsDump);
         }
         Action a0 = sampleAction(Player::P0, regrets[0], totalPositiveRegret[0]);
         Action a1 = sampleAction(Player::P1, regrets[1], totalPositiveRegret[1]);
 
-        VType result = getChild(a0, a1).sampleUtility(depthLimit - 1);
+        VType result = getChild(a0, a1).sampleUtility(depthLimit - 1, needsDump);
 #ifdef DEBUG
         sampleUtilitySum += result;
         sampleUtilityCnt++;
@@ -210,6 +210,36 @@ public:
             it.second->dump(os, depth + 1);
         }
         os << indent << "SearchNode ends" << endl;
+    }
+
+    void dumpRegrets0(ostream& os, int depthLimit) {
+        os  << "ActionFreq of player 0:" << endl;
+        for(const auto& it : actionFreq[0])
+            os << it.second << "(" << (Float)it.second / totalFreq[0]
+                    << "): " << it.first.dumps() << endl;
+        os << "Regrets of player 0:" << endl;
+        for(const auto& it : regrets[0]) {
+            os << it.second << ": " << it.first.dumps() << endl;
+            Action a1 = sampleAction(Player::P1, regrets[1], totalPositiveRegret[1]);
+            os << "sampleUtility: " <<
+                    getChild(it.first, a1).sampleUtility(depthLimit, false) << endl << endl;
+        }
+    }
+
+    void smallDump(ostream& os, const Action* a0, const Action* a1, int depth, int maxDepth = -1) {
+        if (depth > maxDepth)
+            return;
+        os << "depth: " << depth << ", gameState: " << gameState.dumps() << endl;
+        os << "estimateU: " << gameState.estimateU() << endl;
+        Action sa0 = sampleAction(Player::P0, regrets[0], totalPositiveRegret[0]);
+        Action sa1 = sampleAction(Player::P1, regrets[1], totalPositiveRegret[1]);
+        if (a0 == nullptr || a1 == nullptr) {
+            a0 = &sa0;
+            a1 = &sa1;
+        }
+        os << "a0: " << a0->dumps() << endl;
+        os << "a1: " << a1->dumps() << endl << endl;
+        getChild(*a0, *a1).smallDump(os, nullptr, nullptr, depth + 1, maxDepth);
     }
 
 protected:
