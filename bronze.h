@@ -155,7 +155,6 @@ struct GhostState {
                 fEstimateU += f.side * (f.borgs + f.prod * multiplier + 1);
                 if (needsDump)
                     cerr << "EstimateU: " << fEstimateU << " f" << fid << f.dumps() << endl;
-                fid++;
             }
             for(int ti = 0; ti < troopCnt; ++ti) {
                 const auto& t = troops[ti];
@@ -625,7 +624,7 @@ int main()
                 // TODO NEXT Handle PROD differently
                 for(int d = 0; d < DEPTH && !tState.isTerminal(); ++d)
                     tState.next(topActions[a0], topActions[a1]);
-                bool needsDump = false; // a0 == 7 && a1 == 2; // TODO TEST
+                bool needsDump = a0 == 1 && a1 == 2; // TODO TEST
                 VType v = tState.estimateU(needsDump);
                 XState::SetSingleData(a0, a1, v);
             }
@@ -658,7 +657,7 @@ int main()
         { // TODO TEST
             // for(int i = 0; i < topActions.size(); ++i)
             //     cerr << "Action " << i << ": " << topActions[i].dumps() << endl;
-            // XState::DumpSingleLayeredData(cerr, topActions.size());
+            XState::DumpSingleLayeredData(cerr, topActions.size());
         }
 
         start = clock();
