@@ -15,7 +15,7 @@ constexpr int MAX_LINK = 105;
 constexpr int MOVE_BIT = 1;
 constexpr int DEPTH = 5; // 10;
 constexpr int SAMPLE_COUNT = 64; // 64;
-constexpr int MAX_T = 100000000;
+constexpr int MAX_T = 500; // 100000000;
 constexpr int TLE0 = 900; // ms
 constexpr int TLE1 = 45; // ms
 constexpr int PROD_THRESHOLD = 10;
@@ -636,7 +636,7 @@ int main()
         // root.dump(cerr, 0, 0); // TODO TEST
 
         // TODO TEST
-        // root.dumpRegrets0(cerr, DEPTH);
+        root.dumpRegrets0(cerr, DEPTH);
 
         // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
         cout << action.dumps(initialState) << endl;
