@@ -231,6 +231,10 @@ struct GhostState {
             Troop t0 = nextState.createTroop(Player::P0, a0);
             if (t0.num)
                 nextState.troops.push_back(t0);
+            // if (t0.from == 7 && t0.to == 3 && abs(a0.move) == 2) {
+            //     // TODO TEST
+            //     cerr << "7.3.2 f7 : " << factories[7].dumps() << ", num = " << t0.num << endl;
+            // }
         }
         for(const auto& a1 : a1s) {
             Troop t1 = nextState.createTroop(Player::P1, a1);
@@ -500,7 +504,7 @@ int main()
     while (1) {
         int clockLimit = CLOCKS_PER_SEC / 1000;
         clockLimit *= turn == 0 ? TLE0 : TLE1;
-        cerr << "clockLimit: " << clockLimit << endl; // TODO TEST
+        cerr << "clockLimit: " << clockLimit << endl;
 
         turn++;
 
@@ -552,7 +556,7 @@ int main()
                 // TODO NEXT Handle PROD differently
                 for(int d = 0; d < DEPTH && !tState.isTerminal(); ++d)
                     tState = tState.next(topActions[a0], topActions[a1]);
-                bool needsDump = false; // a0 == 16 && a1 == 2; // TODO TEST
+                bool needsDump = false; // a0 == 10 && a1 == 2; // TODO TEST
                 XState::SetSingleData(a0, a1, tState.estimateU(needsDump));
             }
 
