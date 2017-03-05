@@ -16,7 +16,7 @@ constexpr int MAX_LINK = 105;
 constexpr int MOVE_BIT = 1;
 constexpr int DEPTH = 5; // 10;
 constexpr int SAMPLE_COUNT = 64; // 64;
-constexpr int MAX_T = 100000000;
+constexpr int MAX_T = 500; // 100000000;
 constexpr int TLE0 = 900; // ms
 constexpr int TLE1 = 45; // ms
 constexpr int PROD_THRESHOLD = 10;
@@ -613,7 +613,7 @@ int main()
                 MetaAction ma0 = topActions[a0];
                 MetaAction ma1 = topActions[a1];
 
-                if (ma0.code >= 0 && initialState.notInteresting(ma0.target())) {
+                if (clock() - start > clockLimit / 2 || ma0.code >= 0 && initialState.notInteresting(ma0.target())) {
                     XState::SetSingleData(a0, a1, MIN_V);
                     continue;
                 }
@@ -662,12 +662,16 @@ int main()
             // XState::DumpSingleLayeredData(cerr, topActions.size());
         }
 
-        // blindly bombing...
+        // bombing with progressively lower standard...
+        int prod_threshold = 3 - gTurn / 10;
+        int dist_threshold = 1 + gTurn / 3;
+        cerr << "bomb thresholds: " << prod_threshold << ", " << dist_threshold << endl;
         for(int f1 = 0; f1 < factoryCount; f1++)
             if (initialState.factories[f1].side == 1)
                 for(int f2 = 0; f2 < factoryCount; f2++)
-                    if (gDist[f1][f2] == 1 && !gBombed[f2] &&
-                            initialState.factories[f2].side == -1 && initialState.factories[f2].prod == 3) {
+                    if (gDist[f1][f2] <= dist_threshold && !gBombed[f2] &&
+                            initialState.factories[f2].side == -1 &&
+                            initialState.factories[f2].prod >= prod_threshold) {
                         cout << "; BOMB " << f1 << " " << f2;
                         gBombed[f2] = true;
                     }
