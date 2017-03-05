@@ -62,6 +62,7 @@ struct Troop {
 
 Link links[MAX_LINK];
 int gDist[MAX_FACTORY][MAX_FACTORY];
+bool gBombed[MAX_FACTORY];
 
 template<typename T>
 T abs(T a) { return a < 0 ? -a : a; }
@@ -492,6 +493,7 @@ int main()
     }
 
     memset(gDist, -1, sizeof(gDist));
+    memset(gBombed, false, sizeof(gBombed));
     for(int i = 0; i < factoryCount; ++i)
         gDist[i][i] = 0;
     for(const auto& link : links) {
@@ -601,13 +603,25 @@ int main()
         // root.dumpRegrets0(cerr, DEPTH);
 
         // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
-        cout << action.dumps(initialState) << endl;
+        cout << action.dumps(initialState);
 
         { // TODO TEST
             // for(int i = 0; i < topActions.size(); ++i)
             //     cerr << "Action " << i << ": " << topActions[i].dumps() << endl;
             // XState::DumpSingleLayeredData(cerr, topActions.size());
         }
+
+        // blindly bombing...
+        for(int f1 = 0; f1 < factoryCount; f1++)
+            if (initialState.factories[f1].side == 1)
+                for(int f2 = 0; f2 < factoryCount; f2++)
+                    if (gDist[f1][f2] == 1 && !gBombed[f2] &&
+                            initialState.factories[f2].side == -1 && initialState.factories[f2].prod == 3) {
+                        cout << "; BOMB " << f1 << " " << f2;
+                        gBombed[f2] = true;
+                    }
+
+        cout << endl;
 
         start = clock();
     }
