@@ -22,8 +22,8 @@ using VType = int;
 using Float = double;
 using Byte = unsigned char;
 
-constexpr VType MAX_V = 1e8;
-constexpr VType MIN_V = -1e8;
+constexpr VType MAX_V = 10000;
+constexpr VType MIN_V = -10000;
 
 enum class Player {
     P0 = 0,

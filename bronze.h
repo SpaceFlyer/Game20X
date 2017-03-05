@@ -13,11 +13,11 @@ constexpr int MAX_PROD = 3;
 constexpr int MAX_FACTORY = 15;
 constexpr int MAX_LINK = 105;
 constexpr int MOVE_BIT = 1;
-constexpr int DEPTH = 3; // 10;
+constexpr int DEPTH = 5; // 10;
 constexpr int SAMPLE_COUNT = 64; // 64;
-constexpr int MAX_T = 500; // 100000000;
+constexpr int MAX_T = 100000000;
 constexpr int TLE0 = 900; // ms
-constexpr int TLE1 = 40; // ms
+constexpr int TLE1 = 45; // ms
 constexpr int PROD_THRESHOLD = 10;
 constexpr int PROD_COST = 10;
 
@@ -360,6 +360,29 @@ struct GhostState {
         return {rand() % (factoryCount * MetaAction::MAX_MOVE + 3) - 3};
     }
 
+    bool notInteresting(int f) const {
+        // return false; // TODO TEST
+
+        // For P0 only
+        if (factories[f].side == -1)
+            return false;
+        for(const auto& t : troops)
+            if (t.side == -1 && t.to == f)
+                return false;
+
+        // if (factories[f].prod == 0)
+        //     return false;
+        // for(const auto& link : links) {
+        //     const auto& f1 = factories[link.f1];
+        //     const auto& f2 = factories[link.f2];
+        //     if (f1.side == f2.side)
+        //         continue;
+        //     if (link.f1 == f || link.f2 == f)
+        //         return false;
+        // }
+        return true;
+    }
+
     string dumps() const {
         string result = "turn " + to_string(turn);
         for(int i = 0; i < factories.size(); ++i) {
@@ -465,6 +488,7 @@ int main()
     cin >> linkCount; cin.ignore();
     for (int i = 0; i < linkCount; i++) {
         cin >> links[i].f1 >> links[i].f2 >> links[i].dist; cin.ignore();
+        cerr << links[i].f1 << ' ' << links[i].f2 << ' ' << links[i].dist << endl;
     }
 
     memset(gDist, -1, sizeof(gDist));
@@ -533,14 +557,28 @@ int main()
         tableState.setN(topActions.size());
         for(int a0 = 0; a0 < topActions.size(); ++a0)
             for(int a1 = 0; a1 < topActions.size(); ++a1) {
+                MetaAction ma0 = topActions[a0];
+                MetaAction ma1 = topActions[a1];
+
+                if (ma0.code >= 0 && initialState.notInteresting(ma0.target())) {
+                    XState::SetSingleData(a0, a1, MIN_V);
+                    continue;
+                }
+                // if (ma1.code >= 0 && initialState.notInteresting(ma1.target())) {
+                //     XState::SetSingleData(a0, a1, MAX_V);
+                //     continue;
+                // }
+
                 GhostState tState = initialState;
                 // TODO NEXT Handle PROD differently
                 for(int d = 0; d < DEPTH && !tState.isTerminal(); ++d)
                     tState = tState.next(topActions[a0], topActions[a1]);
-                bool needsDump = a0 == 1 && a1 == 2; // TODO TEST
+                bool needsDump = false; // a0 == 7 && a1 == 2; // TODO TEST
                 VType v = tState.estimateU(needsDump);
                 XState::SetSingleData(a0, a1, v);
             }
+
+        cerr << "prepare time: " << (double)(clock() - start) / CLOCKS_PER_SEC << endl;
 
         XSearchNode::ClearMemory();
         XSearchNode& root = *XSearchNode::Make(tableState);
@@ -568,7 +606,7 @@ int main()
         { // TODO TEST
             // for(int i = 0; i < topActions.size(); ++i)
             //     cerr << "Action " << i << ": " << topActions[i].dumps() << endl;
-            XState::DumpSingleLayeredData(cerr, topActions.size());
+            // XState::DumpSingleLayeredData(cerr, topActions.size());
         }
 
         start = clock();
