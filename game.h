@@ -63,6 +63,7 @@ public:
     void init(const State& state) {
         gameState = state;
         totalFreq[0] = totalFreq[1] = totalPositiveRegret[0] = totalPositiveRegret[1] = 0;
+        children.clear();
         regrets[0].clear();
         regrets[1].clear();
         actionFreq[0].clear();
@@ -97,13 +98,17 @@ public:
 
     template<typename FType>
     Action sampleAction(Player player, const HashMap<Action, FType>& sampleFreq,
-            const FType totalFreq) {
+            const FType totalFreq, bool needsDump = false) {
         if (totalFreq == 0)
             return gameState.sampleRandomAction(player);
         int rn = rand() % totalFreq;
+        if (needsDump)
+            cerr << "rn: " << rn << ", totalFreq: " << totalFreq << endl;
         int t = 0;
         for(auto it = sampleFreq.cbegin(); it != sampleFreq.cend(); ++it) {
             t += max<FType>(0, it->second); // freq might be negative for cfr
+            if (needsDump)
+                cerr << "  action: " << it->first.dumps() << ", t: " << t << endl;
             if (t > rn) {
                 return it->first;
             }
@@ -113,7 +118,7 @@ public:
     }
 
     inline Action sampleFinalAction(Player player) {
-        return sampleAction(player, actionFreq[(int)player], totalFreq[(int)player]);
+        return sampleAction(player, actionFreq[(int)player], totalFreq[(int)player], true);
     }
 
     inline void addActionFreq(Player player, const Action& action) {
@@ -134,6 +139,14 @@ public:
         if (children.find(actionPair) == children.end()) {
             children.emplace(actionPair, SearchNode::Make(gameState.next(a0, a1)));
         }
+        // {
+        //     // TODO TEST
+        //     SearchNode& node = *children.find(actionPair)->second;
+        //     if (!(node.gameState.a0[0] == a0.a && node.gameState.a1[0] == a1.a)) {
+        //         node.dump(cerr, 0, 0);
+        //         assert(false);
+        //     }
+        // }
         return *children.find(actionPair)->second;
     }
 
@@ -167,6 +180,17 @@ public:
         vector<Action> samples1 = sampleRandomActions(Player::P1);
 
         for(const auto& aa0 : samples0) {
+            // if (aa0.dumps() == "0" && a1.dumps() == "17") { // TODO TEST
+            //     SearchNode& child = getChild(aa0, a1);
+            //     PairHasher<Action> hasher;
+            //     pair<Action, Action> altpair(aa0, a1);
+            //     pair<Action, Action> statepair(child.gameState.a0[0], child.gameState.a1[0]);
+            //     cerr << "altpair hash = " << hasher(altpair) << ", statepair hash = " << hasher(statepair) << endl;
+            //     cerr << "child a0, a1 = " << child.gameState.a0[0] << ", " << child.gameState.a1[0] << endl;
+            //     sprintf(gCharBuffer, "a0 = %d, a1 = %d, alt utility = %d, utility = %d, regret = %d\n",
+            //             a0.a, a1.a, child.sampleUtility(depthLimit), utility, regrets[0][aa0]);
+            //     cerr << gCharBuffer;
+            // }
             addActionRegret(Player::P0, aa0,
                     getChild(aa0, a1).sampleUtility(depthLimit) - utility);
         }
@@ -212,17 +236,20 @@ public:
         os << indent << "SearchNode ends" << endl;
     }
 
-    void dumpRegrets0(ostream& os, int depthLimit) {
-        os  << "ActionFreq of player 0:" << endl;
-        for(const auto& it : actionFreq[0])
-            os << it.second << "(" << (Float)it.second / totalFreq[0]
-                    << "): " << it.first.dumps() << endl;
-        os << "Regrets of player 0:" << endl;
+    void dumpRegrets0(ostream& os, int depthLimit, bool noPrint = false) {
+        if (!noPrint) {
+            os  << "ActionFreq of player 0:" << endl;
+            for(const auto& it : actionFreq[0])
+                os << it.second << "(" << (Float)it.second / totalFreq[0]
+                        << "): " << it.first.dumps() << endl;
+            os << "Regrets of player 0:" << endl;
+        }
         for(const auto& it : regrets[0]) {
-            os << it.second << ": " << it.first.dumps() << endl;
-            Action a1 = sampleAction(Player::P1, regrets[1], totalPositiveRegret[1]);
-            os << "sampleUtility: " <<
-                    getChild(it.first, a1).sampleUtility(depthLimit, false) << endl << endl;
+            if (!noPrint)
+                os << it.second << ": " << it.first.dumps() << endl;
+            Action a1 = sampleAction(Player::P1, regrets[1], totalPositiveRegret[1]); // noPrint to preserve the same randomn seed
+            // os << "sampleUtility: " <<
+            //         getChild(it.first, a1).sampleUtility(depthLimit, false) << endl << endl;
         }
     }
 

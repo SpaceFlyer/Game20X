@@ -14,8 +14,8 @@ constexpr int MAX_FACTORY = 15;
 constexpr int MAX_LINK = 105;
 constexpr int MOVE_BIT = 1;
 constexpr int DEPTH = 3; // 10;
-constexpr int SAMPLE_COUNT = 1; // 64;
-constexpr int MAX_T = 100000000;
+constexpr int SAMPLE_COUNT = 64; // 64;
+constexpr int MAX_T = 500; // 100000000;
 constexpr int TLE0 = 900; // ms
 constexpr int TLE1 = 40; // ms
 constexpr int PROD_THRESHOLD = 10;
@@ -130,6 +130,10 @@ struct MetaAction {
     inline int hash() const { return code + 3; }
     bool operator==(const MetaAction& other) const { return code == other.code; }
 
+    static MetaAction FromHash(int h) {
+        return {h - 3};
+    }
+
     int target() const {
         ASSERT(code >= 0);
         return code / SingleMoveAction::MAX_MOVE;
@@ -170,6 +174,7 @@ struct GhostState {
 
     VType estimateU(bool needsDump = false) {
         if (needsDump) {
+            cerr << "Previous fEstimateU before needsDump: " << fEstimateU << endl;
             fEstimateU = MIN_V; // reset to dump
         }
         if (fEstimateU == MIN_V) {
@@ -344,15 +349,15 @@ struct GhostState {
         return next(nextState, singleAs[0], singleAs[1]);
     }
 
-    vector<MetaAction> getAllActions(Player player) {
-        vector<MetaAction> result;
-        for(int i = 0; i < factoryCount + 2; ++i)
-            result.push_back({i - 2});
-        return result;
-    }
-
     int getAllActionCount(Player player) {
         return factoryCount * SingleMoveAction::MAX_MOVE + 3;
+    }
+
+    vector<MetaAction> getAllActions(Player player) { // player is not used
+        vector<MetaAction> result;
+        for(int i = 0; i < getAllActionCount(player); ++i)
+            result.push_back({i - 3});
+        return result;
     }
 
     MetaAction sampleRandomAction(Player player) {
@@ -399,16 +404,72 @@ string MetaAction::dumps(const GhostState& state) const {
     return result;
 }
 
-using GhostSearchNode = SearchNode<MetaAction, GhostState, SAMPLE_COUNT>;
+vector<MetaAction> topActions;
+
+using XAction = XNAction<MetaAction::MAX_HASH>;
+using XState = XNDState<MetaAction::MAX_HASH, 1>;
+using XSearchNode = SearchNode<XAction, XState, SAMPLE_COUNT>;
 
 template <>
-int GhostSearchNode::MemoryIndex = 0;
+int XSearchNode::MemoryIndex = 0;
 
-GhostSearchNode gMemory[MAX_NODE_COUNT];
+XSearchNode gMemory[MAX_NODE_COUNT];
 
 template <>
-GhostSearchNode* GhostSearchNode::Memory = gMemory;
+XSearchNode* XSearchNode::Memory = gMemory;
 
+#ifdef TEST
+
+const VType testData[] = {
+-10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,    -10,
+-17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,
+-17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,
+-113,   -113,   -113,   -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -113,   -113,   -17,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-113,   -113,   -113,   -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -113,   -113,   -17,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-113,   -113,   -113,   -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -113,   -113,   -17,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,
+-87,    -87,    -87,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -81,    -87,    -87,    -81,    -81,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-119,   -119,   -119,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -113,   -119,   -119,   -113,   -113,
+-17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,
+-17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,    -17,
+-113,   -113,   -113,   -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -113,   -113,   -17,
+-113,   -113,   -113,   -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -17,    -113,   -113,   -113,   -17
+};
+
+int n = 25;
+
+int main() {
+    assert(sizeof(testData) == sizeof(int) * n * n);
+
+    XState tableState;
+    tableState.d = 0;
+    tableState.setN(n);
+    for(int i = 0; i < n * n; ++i)
+        XState::SetSingleData(i / n, i % n, testData[i]);
+
+    XSearchNode::ClearMemory();
+    XSearchNode& root = *XSearchNode::Make(tableState);
+    for(int t = 0; t < 500; ++t) {
+        root.visit(DEPTH);
+    }
+    root.dumpRegrets0(cerr, DEPTH);
+
+    return 0;
+}
+
+#else
 /**
  * Auto-generated code below aims at helping you parse
  * the standard input according to the problem statement.
@@ -481,8 +542,22 @@ int main()
         // Write an action using cout. DON'T FORGET THE "<< endl"
         // To debug: cerr << "Debug messages..." << endl;
 
-        GhostSearchNode::ClearMemory();
-        GhostSearchNode& root = *GhostSearchNode::Make(initialState);
+        XState tableState;
+        tableState.d = 0;
+        topActions = initialState.getAllActions(Player::P0); // player is not used
+        tableState.setN(topActions.size());
+        for(int a0 = 0; a0 < topActions.size(); ++a0)
+            for(int a1 = 0; a1 < topActions.size(); ++a1) {
+                GhostState tState = initialState;
+                // TODO NEXT Handle PROD differently
+                for(int d = 0; d < DEPTH && !tState.isTerminal(); ++d)
+                    tState = tState.next(topActions[a0], topActions[a1]);
+                bool needsDump = false; // a0 == 16 && a1 == 2; // TODO TEST
+                XState::SetSingleData(a0, a1, tState.estimateU(needsDump));
+            }
+
+        XSearchNode::ClearMemory();
+        XSearchNode& root = *XSearchNode::Make(tableState);
         int t = 0;
         while (true && t < MAX_T) {
             auto now = clock();
@@ -492,7 +567,7 @@ int main()
             root.visit(DEPTH);
         }
 
-        MetaAction action = root.sampleFinalAction(Player::P0);
+        MetaAction action = topActions[root.sampleFinalAction(Player::P0).a];
 
         cerr << "t: " << t << " time: " << (double)(clock() - start) / CLOCKS_PER_SEC << endl;
         cerr << action.dumps() << endl;
@@ -504,6 +579,13 @@ int main()
         // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
         cout << action.dumps(initialState) << endl;
 
+        { // TODO TEST
+            // for(int i = 0; i < topActions.size(); ++i)
+            //     cerr << "Action " << i << ": " << topActions[i].dumps() << endl;
+            XState::DumpSingleLayeredData(cerr, topActions.size());
+        }
+
         start = clock();
     }
 }
+#endif
