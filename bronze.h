@@ -11,11 +11,12 @@ using namespace std;
 
 constexpr int MAX_PROD = 3;
 constexpr int MAX_FACTORY = 15;
+constexpr int MAX_TROOPS = 3000;
 constexpr int MAX_LINK = 105;
 constexpr int MOVE_BIT = 1;
 constexpr int DEPTH = 5; // 10;
 constexpr int SAMPLE_COUNT = 64; // 64;
-constexpr int MAX_T = 100000000;
+constexpr int MAX_T = 500; // 100000000;
 constexpr int TLE0 = 900; // ms
 constexpr int TLE1 = 45; // ms
 constexpr int PROD_THRESHOLD = 10;
@@ -124,11 +125,17 @@ constexpr int MetaAction::MAX_MOVE;
 
 struct GhostState {
     int turn;
-    vector<Factory> factories;
-    vector<Troop> troops;
+    Factory factories[MAX_FACTORY];
+    Troop troops[MAX_TROOPS];
+    int troopCnt;
+
+    GhostState(const GhostState& gs) {
+        memcpy(this, &gs, sizeof(GhostState));
+    }
 
     GhostState() {
         fEstimateU = MIN_V;
+        troopCnt = 0;
     }
 
     bool isTerminal() const {
@@ -143,14 +150,15 @@ struct GhostState {
         if (fEstimateU == MIN_V) {
             int multiplier = isTerminal() ? 1 : PROD_MULTIPLIER;
             fEstimateU = 0;
-            int fid = 0;
-            for(const auto& f : factories) {
+            for(int fid = 0; fid < factoryCount; ++fid) {
+                const auto& f = factories[fid];
                 fEstimateU += f.side * (f.borgs + f.prod * multiplier + 1);
                 if (needsDump)
                     cerr << "EstimateU: " << fEstimateU << " f" << fid << f.dumps() << endl;
                 fid++;
             }
-            for(const auto& t : troops) {
+            for(int ti = 0; ti < troopCnt; ++ti) {
+                const auto& t = troops[ti];
                 fEstimateU += t.num * t.side;
                 if (needsDump)
                     cerr << "EstimateU: " << fEstimateU << " t" << t.dumps() << endl;
@@ -184,9 +192,11 @@ struct GhostState {
         return {decltype(Troop::side)(playerSign), from, to, eta, num};
     }
 
-    GhostState next(GhostState& nextState, const vector<SingleMoveAction>& a0s, const vector<SingleMoveAction>& a1s) const {
+    void next(const vector<SingleMoveAction>& a0s, const vector<SingleMoveAction>& a1s) {
+        GhostState& nextState = *this;
+
         // Move troops
-        for(int i = 0; i < nextState.troops.size(); ++i) {
+        for(int i = 0; i < troopCnt; ++i) {
             --nextState.troops[i].eta;
         }
 
@@ -194,7 +204,7 @@ struct GhostState {
         for(const auto& a0 : a0s) {
             Troop t0 = nextState.createTroop(Player::P0, a0);
             if (t0.num)
-                nextState.troops.push_back(t0);
+                nextState.troops[troopCnt++] = t0;
             // if (t0.from == 7 && t0.to == 3 && abs(a0.move) == 2) {
             //     // TODO TEST
             //     cerr << "7.3.2 f7 : " << factories[7].dumps() << ", num = " << t0.num << endl;
@@ -203,23 +213,25 @@ struct GhostState {
         for(const auto& a1 : a1s) {
             Troop t1 = nextState.createTroop(Player::P1, a1);
             if (t1.num)
-                nextState.troops.push_back(t1);
+                nextState.troops[troopCnt++] = t1;
         }
 
         // Produce new borgs
-        for(auto& f : nextState.factories)
+        for(int fid = 0; fid < factoryCount; ++fid) {
+            auto& f = nextState.factories[fid];
             if (f.side)
                 f.borgs += f.prod;
+        }
 
         // Solve battles
         using VI = vector<int>;
         VI army[2] = {VI(factoryCount, 0), VI(factoryCount, 0)};
-        for(int i = 0; i < nextState.troops.size(); ++i)
+        for(int i = 0; i < nextState.troopCnt; ++i)
             if (nextState.troops[i].eta == 0) {
                 army[nextState.troops[i].side == 1 ? 0 : 1][nextState.troops[i].to] +=
                         nextState.troops[i].num;
-                swap(nextState.troops[i], nextState.troops[nextState.troops.size() - 1]);
-                nextState.troops.pop_back();
+                swap(nextState.troops[i], nextState.troops[nextState.troopCnt - 1]);
+                --troopCnt;
                 --i;
             }
         for(int i = 0; i < factoryCount; ++i) {
@@ -239,17 +251,17 @@ struct GhostState {
                 }
             }
         }
-
-        return nextState;
     }
 
     void increaseProduction(GhostState& nextState, Player player) const {
         int playerSign = player == Player::P0 ? 1 : -1;
-        for(auto& f : nextState.factories)
+        for(int fid = 0; fid < factoryCount; ++fid) {
+            auto& f = nextState.factories[fid];
             if (f.side == playerSign && f.prod < MAX_PROD && f.borgs >= PROD_THRESHOLD) {
                 f.borgs -= PROD_COST;
                 f.prod++;
             }
+        }
     }
 
     static inline void SortSingleMoveActions(vector<SingleMoveAction>& result) {
@@ -366,8 +378,8 @@ struct GhostState {
         return {};
     }
 
-    GhostState next(const MetaAction& a0, const MetaAction& a1) const {
-        GhostState nextState = *this;
+    void next(const MetaAction& a0, const MetaAction& a1) {
+        GhostState& nextState = *this;
         nextState.turn++;
 
         const MetaAction* metaAs[2] = {&a0, &a1};
@@ -380,7 +392,7 @@ struct GhostState {
             singleAs[player] = genSingleAs((Player)player, metaA);
         }
 
-        return next(nextState, singleAs[0], singleAs[1]);
+        return next(singleAs[0], singleAs[1]);
     }
 
     int getAllActionCount(Player player) {
@@ -404,9 +416,11 @@ struct GhostState {
         // For P0 only
         if (factories[f].side == -1)
             return false;
-        for(const auto& t : troops)
+        for(int ti = 0; ti < troopCnt; ++ti) {
+            const auto& t = troops[ti];
             if (t.side == -1 && t.to == f)
                 return false;
+        }
 
         // if (factories[f].prod == 0)
         //     return false;
@@ -423,10 +437,10 @@ struct GhostState {
 
     string dumps() const {
         string result = "turn " + to_string(turn);
-        for(int i = 0; i < factories.size(); ++i) {
+        for(int i = 0; i < factoryCount; ++i) {
             result += " f" + to_string(i) + "=" + factories[i].dumps();
         }
-        for(int i = 0; i < troops.size(); ++i) {
+        for(int i = 0; i < troopCnt; ++i) {
             result += " t" + to_string(i) + "=" + troops[i].dumps();
         }
         return result;
@@ -569,19 +583,19 @@ int main()
                 cin >> args[j];
             if (type == FACTORY) {
                 ASSERT(id < factoryCount);
-                initialState.factories.push_back({
+                initialState.factories[id] = {
                     (decltype(Factory::side))args[0],
                     (decltype(Factory::prod))args[2],
                     (decltype(Factory::borgs))args[1]
-                });
+                };
             } else if (type == TROOP) {
-                initialState.troops.push_back({
+                initialState.troops[initialState.troopCnt++] = {
                     (decltype(Troop::side))args[0],
                     (decltype(Troop::from))args[1],
                     (decltype(Troop::to))args[2],
                     (decltype(Troop::eta))args[4],
                     (decltype(Troop::num))args[3],
-                });
+                };
             }
             cin.ignore();
         }
@@ -610,7 +624,7 @@ int main()
                 GhostState tState = initialState;
                 // TODO NEXT Handle PROD differently
                 for(int d = 0; d < DEPTH && !tState.isTerminal(); ++d)
-                    tState = tState.next(topActions[a0], topActions[a1]);
+                    tState.next(topActions[a0], topActions[a1]);
                 bool needsDump = false; // a0 == 7 && a1 == 2; // TODO TEST
                 VType v = tState.estimateU(needsDump);
                 XState::SetSingleData(a0, a1, v);
@@ -636,7 +650,7 @@ int main()
         // root.dump(cerr, 0, 0); // TODO TEST
 
         // TODO TEST
-        // root.dumpRegrets0(cerr, DEPTH);
+        root.dumpRegrets0(cerr, DEPTH);
 
         // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
         cout << action.dumps(initialState) << endl;
