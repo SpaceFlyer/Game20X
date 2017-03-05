@@ -69,53 +69,13 @@ T abs(T a) { return a < 0 ? -a : a; }
 class GhostState;
 
 struct SingleMoveAction {
-    static constexpr int BIT = MOVE_BIT;
-    static constexpr int MAX_MOVE = 1 << BIT;;
-    static constexpr int MOVE_CNT = (1 << (BIT + 1)) + 1;
-    static constexpr int LINK_MULT = 1 << (BIT + 2);
-    static constexpr int MAX_HASH = MAX_LINK * LINK_MULT + MOVE_CNT;
-
-    int linkId;
-    int move; // between - (1 << BIT) to + (1 << BIT)
-
-    inline int hash() const {
-        ASSERT(linkId >= 0);
-        return move == 0 ? 0 : linkId * (1 << (BIT + 2)) + move + (1 << BIT);
-    }
-
-    inline bool operator==(const SingleMoveAction& other) const {
-        return hash() == other.hash();
-    }
-
-    inline static int MoveBorgs(int move, int borgs1, int borgs2) {
-        if (move < 0) {
-            swap(borgs1, borgs2);
-            move = -move;
-        }
-        if (move == MAX_MOVE)
-            return borgs1;
-        return borgs1 <= (1 << BIT) ? min(borgs1, move) : (borgs1 >> BIT) * move;
-    }
+    int from, to, move, linkId;
 
     inline string dumps() const {
-        return dumps(1 << BIT, 1 << BIT);
-    }
-
-    inline string dumps(const GhostState& state) const;
-
-    inline string dumps(decltype(Factory::borgs) f1borgs, decltype(Factory::borgs) f2borgs) const {
-        if (linkId < 0) {
+        if (move == 0) {
             return "WAIT";
         }
-        int f1 = links[linkId].f1;
-        int f2 = links[linkId].f2;
-        int moveBorgs = MoveBorgs(move, f1borgs, f2borgs);
-        if (move < 0) {
-            swap(f1, f2);
-        }
-        if (moveBorgs == 0)
-            return "WAIT";
-        return "MOVE " + to_string(f1) + " " + to_string(f2) + " " + to_string(moveBorgs);
+        return "MOVE " + to_string(from) + " " + to_string(to) + " " + to_string(move);
     }
 };
 
@@ -123,7 +83,10 @@ struct MetaAction {
     static constexpr int WAIT_CODE = -1;
     static constexpr int GREEDY_CODE = -2;
     static constexpr int PROD_CODE = -3;
-    static constexpr int MAX_HASH = MAX_FACTORY * SingleMoveAction::MAX_MOVE + 3;
+
+    static constexpr int BIT = MOVE_BIT;
+    static constexpr int MAX_MOVE = 1 << BIT;
+    static constexpr int MAX_HASH = MAX_FACTORY * MAX_MOVE + 3;
 
     int code;
 
@@ -136,12 +99,12 @@ struct MetaAction {
 
     int target() const {
         ASSERT(code >= 0);
-        return code / SingleMoveAction::MAX_MOVE;
+        return code / MAX_MOVE;
     }
 
     int move() const {
         ASSERT(code >= 0);
-        return code % SingleMoveAction::MAX_MOVE + 1; // 0 move is pointless
+        return code % MAX_MOVE + 1; // 0 move is pointless
     }
 
     inline string dumps() const {
@@ -157,7 +120,7 @@ struct MetaAction {
     inline string dumps(const GhostState& state) const;
 };
 
-constexpr int SingleMoveAction::MAX_MOVE;
+constexpr int MetaAction::MAX_MOVE;
 
 struct GhostState {
     int turn;
@@ -199,19 +162,20 @@ struct GhostState {
     }
 
     Troop createTroop(Player player, const SingleMoveAction& a) {
+        ASSERT(a.move >= 0);
         constexpr Troop noTroop = {0, 0, 0, 0, 0};
-        if (a.linkId < 0) {
+        if (a.move == 0) {
             return noTroop;
         }
 
         int playerSign = player == Player::P0 ? 1 : -1;
-        Factory& f1 = factories[links[a.linkId].f1];
-        Factory& f2 = factories[links[a.linkId].f2];
-        Factory& ff = a.move > 0 ? f1 : f2;
+        Factory& f1 = factories[a.from];
+        Factory& f2 = factories[a.to];
+        Factory& ff = f1;
         if (ff.side * playerSign != 1)
             return noTroop;
 
-        int num = SingleMoveAction::MoveBorgs(a.move, f1.borgs, f2.borgs);
+        int num = min<int>(a.move, ff.borgs);
         auto from = decltype(Troop::from)(a.move > 0 ? links[a.linkId].f1 : links[a.linkId].f2);
         auto to = decltype(Troop::to)(links[a.linkId].f1 + links[a.linkId].f2 - from);
         auto eta = decltype(Troop::eta)(links[a.linkId].dist);
@@ -288,6 +252,17 @@ struct GhostState {
             }
     }
 
+    static inline void SortSingleMoveActions(vector<SingleMoveAction>& result) {
+        for(int i = 0; i < result.size(); ++i)
+            for(int j = 0; j < i; ++j) {
+                const Link& linkI = links[result[i].linkId];
+                const Link& linkJ = links[result[j].linkId];
+                if (linkJ.dist > linkI.dist || (linkJ.dist == linkI.dist && result[j].move > result[i].move)) {
+                    swap(result[i], result[j]);
+                }
+            }
+    }
+
     vector<SingleMoveAction> genGreedyAs(Player player) const {
         vector<SingleMoveAction> result;
         int playerSign = player == Player::P0 ? 1 : -1;
@@ -295,35 +270,46 @@ struct GhostState {
             const auto& link = links[linkId];
             const auto* f1 = &factories[link.f1];
             const auto* f2 = &factories[link.f2];
+            auto from = link.f1;
+            auto to = link.f2;
             int moveSign = 1;
             if (f1->side != playerSign) {
                 swap(f1, f2);
+                swap(from, to);
                 moveSign = -1;
             }
             if (f1->side == playerSign && f2->side == 0 && f1->borgs > f2->borgs && f2->prod > 0) {
-                int absMove = f1->borgs <= SingleMoveAction::MAX_MOVE
-                        ? f2->borgs
-                        : (int)ceil((Float)f2->borgs / f1->borgs * SingleMoveAction::MAX_MOVE);
-                result.push_back({linkId, absMove * moveSign});
+                result.push_back({from, to, f2->borgs + 1, linkId});
             }
         }
+        SortSingleMoveActions(result);
         return result;
+    }
+
+    static inline int relativeMove(int borgs, int m) {
+        ASSERT(borgs >= 0 && m >= 0);
+        return m == MetaAction::MAX_MOVE ? borgs : borgs / MetaAction::MAX_MOVE * m;
     }
 
     vector<SingleMoveAction> genFocusAs(Player player, const MetaAction& a) const {
         vector<SingleMoveAction> result;
         int target = a.target();
-        int absMove = a.move();
+        int absMove = a.move() + 1;
+        int playerSign = player == Player::P0 ? 1 : -1;
         for(int linkId = 0; linkId < linkCount; ++linkId) {
             int f1 = links[linkId].f1;
             int f2 = links[linkId].f2;
             if (gDist[f1][target] == -1 || gDist[f2][target] == -1)
                 continue;
-            if (gDist[f1][target] == links[linkId].dist + gDist[f2][target])
-                result.push_back({linkId, absMove});
-            if (gDist[f2][target] == links[linkId].dist + gDist[f1][target])
-                result.push_back({linkId, -absMove});
+            if (gDist[f1][target] == links[linkId].dist + gDist[f2][target] &&
+                    factories[f1].side == playerSign) {
+                result.push_back({f1, f2, relativeMove(factories[f1].borgs, absMove), linkId});
+            }
+            if (gDist[f2][target] == links[linkId].dist + gDist[f1][target] &&
+                    factories[f2].side == playerSign)
+                result.push_back({f2, f1, relativeMove(factories[f2].borgs, absMove), linkId});
         }
+        SortSingleMoveActions(result);
         return result;
     }
 
@@ -354,7 +340,7 @@ struct GhostState {
     }
 
     int getAllActionCount(Player player) {
-        return factoryCount * SingleMoveAction::MAX_MOVE + 3;
+        return factoryCount * MetaAction::MAX_MOVE + 3;
     }
 
     vector<MetaAction> getAllActions(Player player) { // player is not used
@@ -365,7 +351,7 @@ struct GhostState {
     }
 
     MetaAction sampleRandomAction(Player player) {
-        return {rand() % (factoryCount * SingleMoveAction::MAX_MOVE + 3) - 3};
+        return {rand() % (factoryCount * MetaAction::MAX_MOVE + 3) - 3};
     }
 
     string dumps() const {
@@ -383,28 +369,17 @@ private:
     int fEstimateU;
 };
 
-string SingleMoveAction::dumps(const GhostState& state) const {
-    if (linkId < 0)
-        return dumps();
-    const Factory& f1 = state.factories[links[linkId].f1];
-    const Factory& f2 = state.factories[links[linkId].f2];
-    const Factory& ff = move > 0 ? f1 : f2;
-    if (ff.side != 1)
-        return "WAIT";
-    return dumps(f1.borgs, f2.borgs);
-}
-
 string MetaAction::dumps(const GhostState& state) const {
     vector<SingleMoveAction> singleAs = state.genSingleAs(Player::P0, *this);
     string result = "WAIT";
     if (code == PROD_CODE)
         for(int i = 0; i < factoryCount; ++i) {
             const auto& f = state.factories[i];
-            if (f.side == 1 && f.borgs >= PROD_THRESHOLD)
+            if (f.side == 1 && f.borgs >= PROD_THRESHOLD && f.prod < MAX_PROD)
                 result += "; INC " + to_string(i);
         }
     for(const auto& a : singleAs)
-        result += ";" + a.dumps(state);
+        result += ";" + a.dumps();
     return result;
 }
 
@@ -556,8 +531,9 @@ int main()
                 // TODO NEXT Handle PROD differently
                 for(int d = 0; d < DEPTH && !tState.isTerminal(); ++d)
                     tState = tState.next(topActions[a0], topActions[a1]);
-                bool needsDump = false; // a0 == 10 && a1 == 2; // TODO TEST
-                XState::SetSingleData(a0, a1, tState.estimateU(needsDump));
+                bool needsDump = false; // a0 == 4 && a1 == 2; // TODO TEST
+                VType v = tState.estimateU(needsDump);
+                XState::SetSingleData(a0, a1, v);
             }
 
         XSearchNode::ClearMemory();
@@ -578,7 +554,7 @@ int main()
         // root.dump(cerr, 0, 0); // TODO TEST
 
         // TODO TEST
-        root.dumpRegrets0(cerr, DEPTH);
+        // root.dumpRegrets0(cerr, DEPTH);
 
         // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
         cout << action.dumps(initialState) << endl;
