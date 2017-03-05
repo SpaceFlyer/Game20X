@@ -236,20 +236,14 @@ public:
         os << indent << "SearchNode ends" << endl;
     }
 
-    void dumpRegrets0(ostream& os, int depthLimit, bool noPrint = false) {
-        if (!noPrint) {
-            os  << "ActionFreq of player 0:" << endl;
-            for(const auto& it : actionFreq[0])
-                os << it.second << "(" << (Float)it.second / totalFreq[0]
-                        << "): " << it.first.dumps() << endl;
-            os << "Regrets of player 0:" << endl;
-        }
+    void dumpRegrets0(ostream& os, int depthLimit) {
+        os  << "ActionFreq of player 0:" << endl;
+        for(const auto& it : actionFreq[0])
+            os << it.second << "(" << (Float)it.second / totalFreq[0]
+                    << "): " << it.first.dumps() << endl;
+        os << "Regrets of player 0:" << endl;
         for(const auto& it : regrets[0]) {
-            if (!noPrint)
-                os << it.second << ": " << it.first.dumps() << endl;
-            Action a1 = sampleAction(Player::P1, regrets[1], totalPositiveRegret[1]); // noPrint to preserve the same randomn seed
-            // os << "sampleUtility: " <<
-            //         getChild(it.first, a1).sampleUtility(depthLimit, false) << endl << endl;
+            os << it.second << ": " << it.first.dumps() << endl;
         }
     }
 

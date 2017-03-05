@@ -283,6 +283,12 @@ struct GhostState {
             }
         }
         SortSingleMoveActions(result);
+        // if (player == Player::P0) { // TODO TEST
+        //     cerr << "Turn " << turn << " greedy moves: ";
+        //     for(const auto& a : result)
+        //         cerr << a.dumps() << ", ";
+        //     cerr << endl;
+        // }
         return result;
     }
 
@@ -294,7 +300,7 @@ struct GhostState {
     vector<SingleMoveAction> genFocusAs(Player player, const MetaAction& a) const {
         vector<SingleMoveAction> result;
         int target = a.target();
-        int absMove = a.move() + 1;
+        int absMove = a.move();
         int playerSign = player == Player::P0 ? 1 : -1;
         for(int linkId = 0; linkId < linkCount; ++linkId) {
             int f1 = links[linkId].f1;
@@ -531,7 +537,7 @@ int main()
                 // TODO NEXT Handle PROD differently
                 for(int d = 0; d < DEPTH && !tState.isTerminal(); ++d)
                     tState = tState.next(topActions[a0], topActions[a1]);
-                bool needsDump = false; // a0 == 4 && a1 == 2; // TODO TEST
+                bool needsDump = a0 == 1 && a1 == 2; // TODO TEST
                 VType v = tState.estimateU(needsDump);
                 XState::SetSingleData(a0, a1, v);
             }
