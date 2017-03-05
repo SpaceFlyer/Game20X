@@ -16,7 +16,7 @@ constexpr int MAX_LINK = 105;
 constexpr int MOVE_BIT = 1;
 constexpr int DEPTH = 5; // 10;
 constexpr int SAMPLE_COUNT = 64; // 64;
-constexpr int MAX_T = 500; // 100000000;
+constexpr int MAX_T = 100000000;
 constexpr int TLE0 = 900; // ms
 constexpr int TLE1 = 45; // ms
 constexpr int PROD_THRESHOLD = 10;
@@ -624,7 +624,7 @@ int main()
                 // TODO NEXT Handle PROD differently
                 for(int d = 0; d < DEPTH && !tState.isTerminal(); ++d)
                     tState.next(topActions[a0], topActions[a1]);
-                bool needsDump = a0 == 1 && a1 == 2; // TODO TEST
+                bool needsDump = false; // a0 == 1 && a1 == 2; // TODO TEST
                 VType v = tState.estimateU(needsDump);
                 XState::SetSingleData(a0, a1, v);
             }
@@ -649,7 +649,7 @@ int main()
         // root.dump(cerr, 0, 0); // TODO TEST
 
         // TODO TEST
-        root.dumpRegrets0(cerr, DEPTH);
+        // root.dumpRegrets0(cerr, DEPTH);
 
         // Any valid action, such as "WAIT" or "MOVE source destination cyborgs"
         cout << action.dumps(initialState) << endl;
@@ -657,7 +657,7 @@ int main()
         { // TODO TEST
             // for(int i = 0; i < topActions.size(); ++i)
             //     cerr << "Action " << i << ": " << topActions[i].dumps() << endl;
-            XState::DumpSingleLayeredData(cerr, topActions.size());
+            // XState::DumpSingleLayeredData(cerr, topActions.size());
         }
 
         start = clock();
