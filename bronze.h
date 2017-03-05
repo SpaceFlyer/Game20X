@@ -277,25 +277,30 @@ struct GhostState {
     vector<SingleMoveAction> genGreedyAs(Player player) const {
         vector<SingleMoveAction> result;
         int playerSign = player == Player::P0 ? 1 : -1;
-        vector<bool> goNeutral, goEnemy, goBalance;
+        bool goNeutral[MAX_LINK];
+        bool goEnemy[MAX_LINK];
+        bool goBalance[MAX_LINK];
         int levels[MAX_FACTORY];
         memset(levels, 0, sizeof(levels));
+        memset(goNeutral, false, sizeof(goNeutral));
+        memset(goEnemy, false, sizeof(goEnemy));
+        memset(goBalance, false, sizeof(goBalance));
         for(int linkId = 0; linkId < linkCount; ++linkId) {
             int from, to;
             greedyFromTo(linkId, playerSign, from, to);
             const auto& link = links[linkId];
             const auto* f1 = &factories[from];
             const auto* f2 = &factories[to];
-            goNeutral.push_back(f1->side == playerSign && f2->side == 0 && f1->borgs > f2->borgs && f2->prod > 0);
-            goEnemy.push_back(f1->side == playerSign && f2->side == -playerSign &&
+            goNeutral[linkId] = (f1->side == playerSign && f2->side == 0 && f1->borgs > f2->borgs && f2->prod > 0);
+            goEnemy[linkId] = (f1->side == playerSign && f2->side == -playerSign &&
                             f1->borgs > f2->borgs + f2->prod * link.dist);
-            goBalance.push_back(f1->side == playerSign && f2->side == playerSign);
+            goBalance[linkId] = (f1->side == playerSign && f2->side == playerSign);
 
-            if (goNeutral.back())
+            if (goNeutral[linkId])
                 levels[from] = max(levels[from], 3);
-            if (goEnemy.back())
+            if (goEnemy[linkId])
                 levels[from] = max(levels[from], 2);
-            if (goBalance.back())
+            if (goBalance[linkId])
                 levels[from] = max(levels[from], 1);
         }
 
