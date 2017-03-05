@@ -27,7 +27,7 @@ auto start = clock();
 
 int factoryCount;
 int linkCount;
-int turn = 0;
+int gTurn = 0;
 
 struct Link {
     int f1, f2, dist;
@@ -263,27 +263,60 @@ struct GhostState {
             }
     }
 
+    inline void greedyFromTo(int linkId, int playerSign, int& from, int& to) const {
+        const auto& link = links[linkId];
+        const auto* f1 = &factories[link.f1];
+        const auto* f2 = &factories[link.f2];
+        from = link.f1;
+        to = link.f2;
+        if (f1->side != playerSign || (f1->side == f2->side && f1->borgs < f2->borgs)) {
+            swap(from, to);
+        }
+    }
+
     vector<SingleMoveAction> genGreedyAs(Player player) const {
         vector<SingleMoveAction> result;
         int playerSign = player == Player::P0 ? 1 : -1;
+        vector<bool> goNeutral, goEnemy, goBalance;
+        int levels[MAX_FACTORY];
+        memset(levels, 0, sizeof(levels));
         for(int linkId = 0; linkId < linkCount; ++linkId) {
+            int from, to;
+            greedyFromTo(linkId, playerSign, from, to);
             const auto& link = links[linkId];
-            const auto* f1 = &factories[link.f1];
-            const auto* f2 = &factories[link.f2];
-            auto from = link.f1;
-            auto to = link.f2;
-            int moveSign = 1;
-            if (f1->side != playerSign) {
-                swap(f1, f2);
-                swap(from, to);
-                moveSign = -1;
-            }
-            if (f1->side == playerSign && f2->side == 0 && f1->borgs > f2->borgs && f2->prod > 0) {
+            const auto* f1 = &factories[from];
+            const auto* f2 = &factories[to];
+            goNeutral.push_back(f1->side == playerSign && f2->side == 0 && f1->borgs > f2->borgs && f2->prod > 0);
+            goEnemy.push_back(f1->side == playerSign && f2->side == -playerSign &&
+                            f1->borgs > f2->borgs + f2->prod * link.dist);
+            goBalance.push_back(f1->side == playerSign && f2->side == playerSign);
+
+            if (goNeutral.back())
+                levels[from] = max(levels[from], 3);
+            if (goEnemy.back())
+                levels[from] = max(levels[from], 2);
+            if (goBalance.back())
+                levels[from] = max(levels[from], 1);
+        }
+
+
+        for(int linkId = 0; linkId < linkCount; ++linkId) {
+            int from, to;
+            greedyFromTo(linkId, playerSign, from, to);
+            const auto& link = links[linkId];
+            const auto* f1 = &factories[from];
+            const auto* f2 = &factories[to];
+            if (goNeutral[linkId]) {
                 result.push_back({from, to, f2->borgs + 1, linkId});
+            } else if (goEnemy[linkId] && levels[from] < 3) {
+                result.push_back({from, to, f2->borgs + f2->prod * link.dist + 1 });
+            } else if (goBalance[linkId] && levels[from] < 2) {
+                result.push_back({from, to, (f1->borgs - f2->borgs) / 2});
             }
         }
+
         SortSingleMoveActions(result);
-        // if (player == Player::P0) { // TODO TEST
+        // if (turn == gTurn && player == Player::P0) { // TODO TEST
         //     cerr << "Turn " << turn << " greedy moves: ";
         //     for(const auto& a : result)
         //         cerr << a.dumps() << ", ";
@@ -508,10 +541,10 @@ int main()
     // game loop
     while (1) {
         int clockLimit = CLOCKS_PER_SEC / 1000;
-        clockLimit *= turn == 0 ? TLE0 : TLE1;
+        clockLimit *= gTurn == 0 ? TLE0 : TLE1;
         cerr << "clockLimit: " << clockLimit << endl;
 
-        turn++;
+        gTurn++;
 
         int entityCount; // the number of entities (e.g. factories and troops)
         cin >> entityCount; cin.ignore();
@@ -521,7 +554,7 @@ int main()
         int args[5];
 
         GhostState initialState;
-        initialState.turn = turn;
+        initialState.turn = gTurn;
 
         for (int i = 0; i < entityCount; i++) {
             int id;
